@@ -78,13 +78,14 @@ struct MainView: View {
         .sheet(isPresented: $model.showPreview) { CDTextPreviewView(model: model) }
         .sheet(isPresented: $model.showISRCReview) { ISRCReviewView(model: model) }
         .sheet(isPresented: $model.showDiagnostics) { DiagnosticsView(model: model) }
-        .alert("CDScribe stopped", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) { Button("OK") { model.errorMessage = nil } } message: { Text(model.errorMessage ?? "") }
+        .alert("CDScribe stopped", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+            Button("OK") { model.errorMessage = nil }
+        } message: { Text(model.errorMessage ?? "") }
         .alert("Burn finished", isPresented: Binding(get: { model.resultMessage != nil }, set: { if !$0 { model.resultMessage = nil } })) { Button("OK") { model.resultMessage = nil } } message: { Text(model.resultMessage ?? "") }
         .confirmationDialog("Abort the physical burn?", isPresented: $model.showCancelWarning, titleVisibility: .visible) {
             Button("Abort Burn", role: .destructive) { model.confirmCancel() }
         } message: { Text("Aborting may make this CD-R unusable. CDScribe will wait for the drive to stop before releasing the prepared audio.") }
         .task {
-            if CommandLine.arguments.contains("--smoke-test") { await model.runSmokeTestIfRequested() }
             model.refreshDiagnostics()
             while !Task.isCancelled {
                 do { try await model.refreshDrives(); try await Task.sleep(for: .seconds(3)) }
@@ -210,16 +211,17 @@ struct MainView: View {
                     }
                     HStack {
                         Picker("Track pause", selection: $model.gapSeconds) { Text("Gapless").tag(0); ForEach(1...10, id: \.self) { Text("\($0) sec").tag($0) } }.frame(width: 180)
-                        Toggle("Verify after burning", isOn: $model.verify)
+                        Toggle("Verify CD-Text after burning", isOn: $model.verify)
                     }
                 }
                 Spacer(minLength: 0)
             }.disabled(model.busy)
-            if model.backend == "cdrdao" {
-                HStack {
-                    Text("Experimental cdrdao device:")
-                    TextField("Exact identifier from scanbus", text: $model.cdrdaoDevice)
-                }.font(.caption).disabled(model.busy)
+            HStack(spacing: 12) {
+                Text("Writing engine: cdrdao").font(.caption)
+                if model.tools.cdrdao == nil {
+                    Text("The bundled writer is missing. Download a fresh copy of CDScribe.").font(.caption).foregroundStyle(.orange)
+                }
+                Spacer(minLength: 0)
             }
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 5) {

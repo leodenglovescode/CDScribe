@@ -8,7 +8,7 @@ struct DiagnosticsView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("Diagnostics").font(.title2.bold()); Spacer()
-                Button("Refresh") { model.refreshDiagnostics() }.disabled(model.busy)
+                Button("Refresh") { model.refreshDiagnostics(scanBus: true) }.disabled(model.busy)
                 Button("Copy") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(model.diagnostics + "\n\n" + model.logs.joined(separator: "\n"), forType: .string) }
                 Button("Done") { dismiss() }.keyboardShortcut(.defaultAction)
             }
@@ -29,13 +29,13 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Picker("Appearance", selection: $appearance) { Text("System").tag("System"); Text("Light").tag("Light"); Text("Dark").tag("Dark") }
-            Picker("Burning backend", selection: $model.backend) { Text("Apple DiscRecording").tag("DiscRecording"); Text("cdrdao (experimental on macOS)").tag("cdrdao") }
-            Text("DiscRecording is the default. cdrdao must confirm device access and CD-Text support before writing.").font(.caption).foregroundStyle(.secondary)
-            Section("Optional executable paths") {
-                TextField("FFmpeg", text: $model.ffmpegPath, prompt: Text("Automatic detection"))
-                TextField("FFprobe", text: $model.ffprobePath, prompt: Text("Automatic detection"))
-                TextField("cdrdao", text: $model.cdrdaoPath, prompt: Text("Automatic detection"))
-                Text("Normal importing and burning are completely offline. FFmpeg/FFprobe are required; cdrdao is optional.").font(.caption).foregroundStyle(.secondary)
+            LabeledContent("Writing engine", value: "cdrdao")
+            Text("cdrdao uses the selected writer and checks blank media, CD-Text support, capacity and reported speeds before burning. Apple’s APIs provide drive discovery and CD-Text readback. Audio readback verification is currently unavailable.").font(.caption).foregroundStyle(.secondary)
+            Section("Advanced: executable overrides") {
+                TextField("FFmpeg", text: $model.ffmpegPath, prompt: Text("Included with CDScribe"))
+                TextField("FFprobe", text: $model.ffprobePath, prompt: Text("Included with CDScribe"))
+                TextField("cdrdao", text: $model.cdrdaoPath, prompt: Text("Included with CDScribe"))
+                Text("FFmpeg, FFprobe and cdrdao are included. Leave these fields empty to use the bundled tools. Importing and burning work completely offline.").font(.caption).foregroundStyle(.secondary)
                 Button("Apply") { model.saveSettings() }
             }
         }.formStyle(.grouped).padding(8).disabled(model.busy)

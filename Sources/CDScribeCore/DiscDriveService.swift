@@ -23,7 +23,7 @@ public struct DiscDriveService: Sendable {
     public func discover() async throws -> [DiscDrive] {
         try await Task.detached { try JSONDecoder().decode([DiscDrive].self, from: CDNativeDisc.driveSnapshot()) }.value
     }
-    public func diagnostics(tools: BackendTools) async -> String {
+    public func diagnostics(tools: BackendTools, scanBus: Bool = false) async -> String {
         var lines: [String] = []
         for (name, path) in [("FFmpeg", tools.ffmpeg), ("FFprobe", tools.ffprobe), ("cdrdao", tools.cdrdao)] {
             if let path {
@@ -34,7 +34,7 @@ public struct DiscDriveService: Sendable {
                 } catch { lines.append("\(name): \(error.localizedDescription)") }
             } else { lines.append("\(name): not installed") }
         }
-        if let cdrdao = tools.cdrdao {
+        if scanBus, let cdrdao = tools.cdrdao {
             do {
                 let result = try await ProcessRunner().run(cdrdao, ["scanbus"])
                 lines.append("cdrdao scanbus (exit \(result.status)):\n" + String(decoding: result.output + result.errorOutput, as: UTF8.self))

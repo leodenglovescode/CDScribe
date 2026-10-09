@@ -9,3 +9,6 @@ xcuserdata/
 *.wav
 *.aiff
 *.toc
+
+.dependencies/
+dist/

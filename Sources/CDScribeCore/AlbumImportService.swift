@@ -86,7 +86,7 @@ public struct AlbumImportService: Sendable {
         return files
     }
     public func importURLs(_ urls: [URL], progress: ProgressHandler? = nil) async throws -> [AlbumModel] {
-        guard let ffprobe = tools.ffprobe else { throw CDScribeError.message("FFprobe is missing. Install the free FFmpeg dependency or choose its path in Settings.") }
+        guard let ffprobe = tools.ffprobe else { throw CDScribeError.message("The bundled metadata reader is missing. Download a fresh copy of CDScribe or check advanced executable settings.") }
         let files = try await Task.detached { try Self.collectFiles(urls) }.value
         guard !files.isEmpty else { throw CDScribeError.message("No FLAC files were found. Choose FLAC files or an album folder.") }
         guard files.count <= 999 else { throw CDScribeError.message("Import one album or a small collection of discs at a time (up to 999 tracks).") }

@@ -28,7 +28,7 @@ public struct AudioConversionService: Sendable {
     }
 
     public func prepare(_ album: AlbumModel, text: CDText, gapSeconds: Int = 0, capacity: Int64 = CDDA.capacity80, progress: ProgressHandler? = nil) async throws -> PreparedDisc {
-        guard let ffmpeg = tools.ffmpeg else { throw CDScribeError.message("FFmpeg is missing. Install it or choose its executable in Settings.") }
+        guard let ffmpeg = tools.ffmpeg else { throw CDScribeError.message("The bundled audio converter is missing. Download a fresh copy of CDScribe or check advanced executable settings.") }
         guard (0...30).contains(gapSeconds) else { throw CDScribeError.message("Track pauses must be between 0 and 30 seconds.") }
         try Self.estimatedLayout(album, gapSeconds: gapSeconds).validate(capacity: capacity)
         for track in album.tracks {

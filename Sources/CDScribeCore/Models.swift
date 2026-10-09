@@ -3,7 +3,14 @@ import Foundation
 
 public enum CDScribeError: Error, LocalizedError, Sendable {
     case message(String)
-    public var errorDescription: String? { if case .message(let text) = self { return text }; return nil }
+    case unsupportedNativePregap(String)
+    public var errorDescription: String? {
+        switch self {
+        case .message(let text): return text
+        case .unsupportedNativePregap(let details):
+            return "DiscRecording cannot honor the requested track pauses with this writer. CDScribe stopped to preserve your layout. The app uses cdrdao for writing. Review the disc status before starting a new attempt. Writing and verification were not confirmed. Details: \(details)"
+        }
+    }
     public static func describe(_ error: any Error) -> String {
         if error is DecodingError { return "The backend returned an unexpected response: \(String(describing: error))" }
         return error.localizedDescription

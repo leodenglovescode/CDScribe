@@ -15,8 +15,8 @@ final class AppModel {
     var capacityMinutes = 80 { didSet { invalidate() } }
     var policy: TextEncodingPolicy = .latin1 { didSet { invalidate() } }
     var verify = true
-    var backend = "DiscRecording" { didSet { updateSpeedSelection() } }
-    var cdrdaoDevice = "" { didSet { updateSpeedSelection() } }
+    // cdrdao is the application's only writer. Legacy backend preferences are ignored.
+    let backend = "cdrdao"
     var ffmpegPath = UserDefaults.standard.string(forKey: "ffmpegPath") ?? ""
     var ffprobePath = UserDefaults.standard.string(forKey: "ffprobePath") ?? ""
     var cdrdaoPath = UserDefaults.standard.string(forKey: "cdrdaoPath") ?? ""
@@ -25,7 +25,7 @@ final class AppModel {
     var progress = OperationProgress("Ready", "Drag an album folder or FLAC files to begin")
     var errorMessage: String?
     var resultMessage: String?
-    var diagnostics = "Checking installed backends…"
+    var diagnostics = "Checking bundled tools…"
     var logs: [String] = []
     var showPreview = false
     var showISRCReview = false
@@ -41,19 +41,17 @@ final class AppModel {
     }
     var hasAlbum: Bool { !album.tracks.isEmpty }
     var selectedDrive: DiscDrive? { drives.first { $0.id == driveID } }
-    var speedDrive: DiscDrive? {
-        backend == "cdrdao" ? drives.first { $0.id == cdrdaoDevice } : selectedDrive
-    }
+    var speedDrive: DiscDrive? { selectedDrive }
     var availableSpeeds: [Double] {
-        BurnSpeedPolicy.available(speedDrive?.speeds ?? [], integerOnly: backend == "cdrdao")
+        BurnSpeedPolicy.available(speedDrive?.speeds ?? [], integerOnly: true)
     }
     var speedUnavailableReason: String {
         guard let drive = speedDrive else { return "Connect and select a CD writer to load supported speeds." }
         if !drive.present { return "Insert a blank CD-R to load supported speeds." }
         if drive.busy { return "The writer is reading the disc. Supported speeds will refresh when it is ready." }
         if !drive.blank { return "The inserted disc is not blank. Insert a blank CD-R for burning." }
-        if backend == "cdrdao" && !drive.supportedSpeeds.isEmpty && availableSpeeds.isEmpty {
-            return "cdrdao cannot represent the reported speeds. Choose DiscRecording."
+        if !drive.supportedSpeeds.isEmpty && availableSpeeds.isEmpty {
+            return "cdrdao cannot represent this writer’s reported speeds. Choose another CD writer."
         }
         return "The writer detected the blank disc but did not report supported speeds. Refresh the writer status."
     }
@@ -68,7 +66,7 @@ final class AppModel {
     var capacity: Int64 { min(Int64(capacityMinutes * 60 * 75), selectedDrive?.capacity ?? Int64(capacityMinutes * 60 * 75)) }
     var planningCapacity: Int64 { Int64(capacityMinutes * 60 * 75) }
     var canBurn: Bool {
-        hasAlbum && !busy && speedDrive?.ready == true && availableSpeeds.contains(speed) && (backend == "DiscRecording" || tools.cdrdao != nil) && (try? textResult.get()) != nil
+        hasAlbum && !busy && speedDrive?.ready == true && availableSpeeds.contains(speed) && tools.cdrdao != nil && (try? textResult.get()) != nil
     }
     func applyISRCChoice(_ choice: ISRCBulkChoice) {
         guard hasAlbum, !busy else { return }
@@ -103,7 +101,8 @@ final class AppModel {
             defer { self.busy = false; self.burning = false; self.operation = nil }
             do { try await body() }
             catch is CancellationError { self.progress = OperationProgress("Cancelled", "Operation stopped. A cancelled physical burn may leave the disc unusable."); self.log(self.progress.detail) }
-            catch { let message = CDScribeError.describe(error); self.errorMessage = message; self.progress = OperationProgress("Stopped", message); self.log(message) }
+            catch {
+                let message = CDScribeError.describe(error); self.errorMessage = message; self.progress = OperationProgress("Stopped", message); self.log(message) }
         }
     }
     func importURLs(_ urls: [URL]) {
@@ -136,9 +135,8 @@ final class AppModel {
         log("Prepared \(prepared!.layout.audioFrames) audio frames; \(prepared!.layout.paddingFrames) zero frames added only at the disc end.")
     }
     func burn() {
-        guard canBurn else { return }
-        let chosenBackend = backend
-        let identifier = chosenBackend == "DiscRecording" ? driveID : cdrdaoDevice
+        guard canBurn, let cdrdao = tools.cdrdao else { return }
+        let identifier = driveID
         let chosenSpeed = speed
         run {
             try await self.prepareIfNeeded()
@@ -146,16 +144,11 @@ final class AppModel {
             guard let currentDrive = self.drives.first(where: { $0.id == identifier }), currentDrive.ready else {
                 throw CDScribeError.message("The selected writer or blank disc is no longer ready. Refresh the writer status before burning.")
             }
-            try BurnSpeedPolicy.validate(chosenSpeed, reported: currentDrive.speeds, integerOnly: chosenBackend == "cdrdao")
+            try BurnSpeedPolicy.validate(chosenSpeed, reported: currentDrive.speeds, integerOnly: true)
             guard let disc = self.prepared else { return }
-            if self.backend == "DiscRecording" {
-                guard let drive = self.selectedDrive, drive.ready else { throw CDScribeError.message("The selected drive is not ready. Insert a blank CD-R and refresh the drive status.") }
-                try disc.layout.validate(capacity: min(self.planningCapacity, drive.capacity))
-            }
+            try disc.layout.validate(capacity: min(self.planningCapacity, currentDrive.capacity))
             self.burning = true
-            let service: any BurningService
-            if self.backend == "cdrdao", let path = self.tools.cdrdao { service = CdrdaoBurningService(executable: path) }
-            else { service = NativeBurningService() }
+            let service = CdrdaoBurningService(executable: cdrdao)
             let result = try await service.burn(disc, options: BurnOptions(driveID: identifier, speed: chosenSpeed, verify: self.verify), progress: self.reporter)
             self.resultMessage = result.message; self.log(result.message)
             self.progress = OperationProgress("Finished", result.message, fraction: 1)
@@ -183,8 +176,9 @@ final class AppModel {
         if !drives.contains(where: { $0.id == driveID }) { driveID = drives.first?.id ?? "" }
         updateSpeedSelection()
     }
-    func refreshDiagnostics() {
-        Task { diagnostics = await DiscDriveService().diagnostics(tools: tools); log(diagnostics) }
+    func refreshDiagnostics(scanBus: Bool = false) {
+        guard !busy else { return }
+        Task { diagnostics = await DiscDriveService().diagnostics(tools: tools, scanBus: scanBus); log(diagnostics) }
     }
     func saveSettings() {
         for (key, value) in [("ffmpegPath", ffmpegPath), ("ffprobePath", ffprobePath), ("cdrdaoPath", cdrdaoPath)] { UserDefaults.standard.set(value, forKey: key) }

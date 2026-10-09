@@ -8,7 +8,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)mediaLabel:(NSString *)rawType;
 + (nullable NSNumber *)requestedSpeed:(double)speed statusJSON:(NSData *)json;
 + (nullable NSData *)validatedText:(NSData *)json error:(NSError **)error;
-+ (BOOL)validateAudioPaths:(NSArray<NSString *> *)paths sectors:(NSArray<NSNumber *> *)sectors error:(NSError **)error;
++ (BOOL)isUnsupportedPregapError:(NSNumber *)code;
++ (BOOL)validateAudioPaths:(NSArray<NSString *> *)paths sectors:(NSArray<NSNumber *> *)sectors gaps:(NSArray<NSNumber *> *)gaps error:(NSError **)error;
 + (nullable NSData *)readTextForDevice:(NSString *)identifier error:(NSError **)error;
 - (BOOL)startDevice:(NSString *)identifier paths:(NSArray<NSString *> *)paths sectors:(NSArray<NSNumber *> *)sectors gaps:(NSArray<NSNumber *> *)gaps text:(NSData *)json speed:(double)speed verify:(BOOL)verify error:(NSError **)error;
 - (NSData *)burnStatus;

@@ -1,0 +1,16 @@
+[
+  {
+    "name": "ffmpeg",
+    "version": "9.0.2",
+    "url": "https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz",
+    "archive": "ffmpeg-9.0.2.tar.xz",
+    "sha256": "8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e"
+  },
+  {
+    "name": "cdrdao",
+    "version": "1.2.6",
+    "url": "https://github.com/cdrdao/cdrdao/releases/download/rel_1_2_6/cdrdao-1.2.6.tar.bz2",
+    "archive": "cdrdao-1.2.6.tar.bz2",
+    "sha256": "0cf29e1183ffd8e4d167c403d7a6ea2109a2dd4cd97e61f80417cf1373220ff4"
+  }
+]

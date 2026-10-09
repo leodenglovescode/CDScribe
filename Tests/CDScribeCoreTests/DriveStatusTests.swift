@@ -9,6 +9,26 @@ import NativeDisc
     func speeds(_ object: [String: Any]) throws -> [Double] {
         try JSONDecoder().decode([Double].self, from: CDNativeDisc.speedSnapshot(status(object)))
     }
+    @Test func pregapErrorClassificationUsesOSStatusRatherThanLocalizedText() {
+        let code = Int64(0x80020205)
+        #expect(CDNativeDisc.isUnsupportedPregapError(NSNumber(value: code)))
+        #expect(CDNativeDisc.isUnsupportedPregapError(NSNumber(value: Int32(truncatingIfNeeded: code))))
+        for other in [Int64(0), 0x80020201, 0x80020062] {
+            #expect(!CDNativeDisc.isUnsupportedPregapError(NSNumber(value: other)))
+        }
+    }
+    @Test func nativeFailedStatusOffersRecoveryOnlyForPregapFailure() throws {
+        var object: [String: Any] = ["state": "DRStatusStateFailed", "phase": "Burning", "done": false, "failed": true, "error": "Localized framework message", "errorCode": Int64(0x80020205), "pregapUnsupported": true, "verificationObserved": false]
+        let gapStatus = try JSONDecoder().decode(NativeStatus.self, from: status(object))
+        if case .unsupportedNativePregap(let details) = gapStatus.failure {
+            #expect(details.contains("Localized framework message"))
+            #expect(details.contains("2147615237"))
+        } else { Issue.record("Pregap failure was not classified for recovery") }
+        object["pregapUnsupported"] = false; object["errorCode"] = Int64(0x80020062)
+        object["error"] = "An unrelated error that happens to mention pregap"
+        let other = try JSONDecoder().decode(NativeStatus.self, from: status(object))
+        if case .unsupportedNativePregap = other.failure { Issue.record("Unrelated failure must not offer pregap recovery") }
+    }
     @Test func insertedSuperDriveMediaReportsNestedSpeeds() throws {
         let json = try status(["DRDeviceMediaInfoKey": ["DRDeviceBurnSpeedsKey": [1764, 2822, 4233]]])
         #expect(try JSONDecoder().decode([Double].self, from: CDNativeDisc.speedSnapshot(json)) == [10, 16, 24])

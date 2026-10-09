@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import Foundation
+import AppKit
 import Testing
+import NativeDisc
 @testable import CDScribeCore
 
 struct Fixtures: Sendable {
@@ -9,7 +11,17 @@ struct Fixtures: Sendable {
     init() throws {
         directory = FileManager.default.temporaryDirectory.appendingPathComponent("CDScribeTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        tools = BackendTools()
+        if let helpers = ProcessInfo.processInfo.environment["CDSCRIBE_TEST_HELPERS"] {
+            let base = URL(fileURLWithPath: helpers, isDirectory: true)
+            for name in ["ffmpeg", "ffprobe", "cdrdao"] {
+                guard FileManager.default.isExecutableFile(atPath: base.appendingPathComponent(name).path) else {
+                    throw CDScribeError.message("Required packaged helper is missing: \(name)")
+                }
+            }
+            tools = BackendTools(ffmpeg: base.appendingPathComponent("ffmpeg"), ffprobe: base.appendingPathComponent("ffprobe"), cdrdao: base.appendingPathComponent("cdrdao"))
+        } else {
+            tools = BackendTools()
+        }
         guard tools.ffmpeg != nil, tools.ffprobe != nil, tools.cdrdao != nil else { throw CDScribeError.message("Integration tests require ffmpeg, ffprobe and cdrdao. Install these dependencies before testing.") }
     }
     func remove() { try? FileManager.default.removeItem(at: directory) }
@@ -78,6 +90,22 @@ struct IntegrationTests {
         #expect(!result.physicalDiscWritten)
         #expect(try Data(contentsOf: first) == originalFirst); #expect(try Data(contentsOf: second) == originalSecond)
     }
+    @Test func nativePreparationValidatesActualPregaps() async throws {
+        let fixture = try Fixtures(); defer { fixture.remove() }
+        for i in 1...2 { _ = try await fixture.generate("Gap \(i)", metadata: ["TITLE": "Track \(i)", "ARTIST": "Artist", "ALBUM": "Gaps", "TRACKNUMBER": String(i)]) }
+        let album = try #require(try await AlbumImportService(tools: fixture.tools).importURLs([fixture.directory]).first)
+        let text = try MetadataMapper.cdText(album, policy: .latin1)
+        for pause in [0, 2] {
+            let disc = try await AudioConversionService(tools: fixture.tools).prepare(album, text: text, gapSeconds: pause)
+            defer { disc.remove() }
+            #expect(disc.layout.tracks.map(\.pregapSectors) == [150, Int64(pause * 75)])
+            let paths = disc.wavURLs.map(\.path), sectors = disc.layout.tracks.map { NSNumber(value: $0.sectors) }
+            try CDNativeDisc.validateAudioPaths(paths, sectors: sectors, gaps: disc.layout.tracks.map { NSNumber(value: $0.pregapSectors) })
+            for invalid: [NSNumber] in [[150], [0, 0], [150, -1], [150, 2251], [150, 0.5]] {
+                #expect(throws: (any Error).self) { try CDNativeDisc.validateAudioPaths(paths, sectors: sectors, gaps: invalid) }
+            }
+        }
+    }
     @Test func semicolonTaggedFLACImportsAndPreparesWithoutInvalidISRC() async throws {
         let fixture = try Fixtures(); defer { fixture.remove() }
         let raw = "GBAYE0200770;GBAYE1600189"
@@ -143,13 +171,20 @@ struct IntegrationTests {
         let expected = try Data(contentsOf: reference)
         #expect(try Data(contentsOf: disc.audioURL).prefix(expected.count) == expected)
     }
-    @Test func embeddedArtwork() async throws {
+    @Test @MainActor func embeddedArtwork() async throws {
         let fixture = try Fixtures(); defer { fixture.remove() }
         let image = fixture.directory.appendingPathComponent("cover.png")
         _ = try await ProcessRunner().checked(fixture.tools.ffmpeg!, ["-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=32x32", "-frames:v", "1", image.path])
-        let (url, _) = try await fixture.generate("Art", metadata: ["TITLE": "Art", "ARTIST": "Artist", "ALBUM": "Artwork", "TRACKNUMBER": "1"], artwork: image)
-        let album = try #require(try await AlbumImportService(tools: fixture.tools).importURLs([url]).first)
-        #expect(album.artwork == (try Data(contentsOf: image)))
+        let bitmap = try #require(NSBitmapImageRep(data: Data(contentsOf: image)))
+        let jpeg = fixture.directory.appendingPathComponent("cover.jpg")
+        try #require(bitmap.representation(using: .jpeg, properties: [:])).write(to: jpeg)
+        for cover in [image, jpeg] {
+            let (url, _) = try await fixture.generate("Art-" + cover.pathExtension, metadata: ["TITLE": "Art", "ARTIST": "Artist", "ALBUM": "Artwork", "TRACKNUMBER": "1"], artwork: cover)
+            let album = try #require(try await AlbumImportService(tools: fixture.tools).importURLs([url]).first)
+            #expect(album.artwork == (try Data(contentsOf: cover)))
+            let prepared = try await AudioConversionService(tools: fixture.tools).prepare(album, text: MetadataMapper.cdText(album, policy: .latin1))
+            prepared.remove()
+        }
     }
     @Test func malformedFLACRejected() throws {
         let fixture = try Fixtures(); defer { fixture.remove() }

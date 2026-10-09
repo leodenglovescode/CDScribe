@@ -27,7 +27,7 @@ public struct BurnResult: Sendable {
         let textData = try JSONEncoder().encode(disc.text)
         try await Task.detached {
             _ = try CDNativeDisc.validatedText(textData)
-            try CDNativeDisc.validateAudioPaths(disc.wavURLs.map(\.path), sectors: disc.layout.tracks.map { NSNumber(value: $0.sectors) })
+            try CDNativeDisc.validateAudioPaths(disc.wavURLs.map(\.path), sectors: disc.layout.tracks.map { NSNumber(value: $0.sectors) }, gaps: disc.layout.tracks.map { NSNumber(value: $0.pregapSectors) })
         }.value
     }
     public nonisolated static func validateText(_ text: CDText) throws -> Data { try CDNativeDisc.validatedText(JSONEncoder().encode(text)) }
@@ -44,7 +44,7 @@ public struct BurnResult: Sendable {
             progress?(OperationProgress(status.phase, cancelled ? "Abort requested; waiting for the writer to stop safely" : status.state, fraction: status.fraction))
             if status.failed {
                 if cancelled { throw CancellationError() }
-                throw CDScribeError.message("DiscRecording failed: \(status.error). The disc may be incomplete; review Diagnostics before retrying.")
+                throw status.failure
             }
             if status.done {
                 if cancelled { throw CDScribeError.message("The writer finished before cancellation took effect. A disc was written; verification was interrupted.") }
@@ -63,7 +63,7 @@ public struct BurnResult: Sendable {
         }
     }
 }
-private struct NativeStatus: Decodable {
+struct NativeStatus: Decodable {
     var state: String
     var phase: String
     var done: Bool
@@ -71,26 +71,46 @@ private struct NativeStatus: Decodable {
     var fraction: Double?
     var error: String
     var verificationObserved: Bool
+    var errorCode: Int64
+    var pregapUnsupported: Bool
+    var failure: CDScribeError {
+        let details = "\(error) (code \(errorCode))"
+        return pregapUnsupported ? .unsupportedNativePregap(details) : .message("DiscRecording failed: \(details). The disc may be incomplete; review Diagnostics before retrying.")
+    }
 }
 
 @MainActor public final class CdrdaoBurningService: BurningService {
     let executable: URL
     public init(executable: URL) { self.executable = executable }
-    public func burn(_ disc: PreparedDisc, options: BurnOptions, progress: ProgressHandler?) async throws -> BurnResult {
-        guard !options.driveID.isEmpty, !options.driveID.hasPrefix("-") else { throw CDScribeError.message("Supply the exact cdrdao device identifier shown by scanbus in Diagnostics.") }
-        // Preflight with the actual device. The GUI exposes this backend as experimental on macOS.
-        let driveInfo = try await ProcessRunner().checked(executable, ["drive-info", "--device", options.driveID])
+    /// Read-only checks shared by writing and hardware diagnostics. Never operates the laser.
+    public func preflight(driveID: String, speed: Double) async throws -> CdrdaoMedia {
+        guard !driveID.isEmpty, !driveID.hasPrefix("-") else { throw CDScribeError.message("Select a connected CD writer before using cdrdao.") }
+        let driveInfo = try await ProcessRunner().checked(executable, ["drive-info", "--device", driveID])
         let driveLog = String(decoding: driveInfo.output + driveInfo.errorOutput, as: UTF8.self)
-        guard CdrdaoPreflight.supportsText(driveLog) else { throw CDScribeError.message("cdrdao did not confirm CD-Text support for this writer. Use DiscRecording or inspect Diagnostics.\n\(driveLog)") }
-        let mediaInfo = try await ProcessRunner().checked(executable, ["disk-info", "--device", options.driveID])
+        guard CdrdaoPreflight.supportsText(driveLog) else { throw CDScribeError.message("cdrdao did not confirm CD-Text support for this writer. Inspect Diagnostics.\n\(driveLog)") }
+        let mediaInfo = try await ProcessRunner().checked(executable, ["disk-info", "--device", driveID])
         let mediaLog = String(decoding: mediaInfo.output + mediaInfo.errorOutput, as: UTF8.self)
-        let capacity = try CdrdaoPreflight.blankCapacity(mediaLog)
-        try disc.layout.validate(capacity: capacity)
-        let drives = try await DiscDriveService().discover()
-        guard let drive = drives.first(where: { $0.id == options.driveID }), drive.ready else {
-            throw CDScribeError.message("cdrdao requires a ready writer whose current media speeds can be confirmed by DiscRecording. Nothing has been written.")
+        let reportedCapacity = try CdrdaoPreflight.blankCapacity(mediaLog)
+        // cdrdao briefly takes exclusive device access. DiscRecording can report
+        // transitioning/no media just after the child exits; wait for fresh status
+        // rather than reusing a stale pre-query speed list or rejecting too early.
+        var readyDrive: DiscDrive?
+        for attempt in 0..<24 {
+            try Task.checkCancellation()
+            let drives = try await DiscDriveService().discover()
+            if let drive = drives.first(where: { $0.id == driveID }), drive.ready { readyDrive = drive; break }
+            if attempt < 23 { try await Task.sleep(for: .milliseconds(250)) }
         }
-        try BurnSpeedPolicy.validate(options.speed, reported: drive.speeds, integerOnly: true)
+        guard let drive = readyDrive else {
+            throw CDScribeError.message("The writer did not become ready after cdrdao checked the disc. Refresh the disc status before retrying. Nothing has been written.")
+        }
+        try BurnSpeedPolicy.validate(speed, reported: drive.speeds, integerOnly: true)
+        return CdrdaoMedia(capacity: min(reportedCapacity, drive.capacity), driveLog: driveLog, mediaLog: mediaLog)
+    }
+    public func burn(_ disc: PreparedDisc, options: BurnOptions, progress: ProgressHandler?) async throws -> BurnResult {
+        let media = try await preflight(driveID: options.driveID, speed: options.speed)
+        try disc.layout.validate(capacity: media.capacity)
+        try Task.checkCancellation()
         var args = ["write", "--device", options.driveID, "--driver", "generic-mmc:0x10", "-n", "--speed", String(format: "%.0f", options.speed)]
         args += ["disc.toc"]
         progress?(OperationProgress("Burning", "cdrdao disc-at-once write"))
@@ -108,22 +128,45 @@ private struct NativeStatus: Decodable {
     }
 }
 
+public struct CdrdaoMedia: Sendable {
+    public var capacity: Int64
+    public var driveLog: String
+    public var mediaLog: String
+}
+
 public enum CdrdaoPreflight {
     public static func supportsText(_ log: String) -> Bool {
         log.range(of: "(?im)^\\s*CD[- ]TEXT writing (?:is )?supported\\.?\\s*$", options: .regularExpression) != nil ||
         log.range(of: "(?im)^\\s*CD[- ]TEXT writing\\s*:\\s*yes\\s*$", options: .regularExpression) != nil
     }
     public static func blankCapacity(_ log: String) throws -> Int64 {
-        let blank = log.range(of: "(?im)^\\s*(?:disc|disk|medium|media)\\s*(?:status|state)\\s*:\\s*(?:empty|blank)\\s*$", options: .regularExpression) != nil ||
-            log.range(of: "(?im)^\\s*(?:(?:disc|disk|medium|media)\\s+)?(?:is\\s+)?(?:empty|blank)\\s*:\\s*yes\\s*$", options: .regularExpression) != nil
-        guard blank, log.range(of: "(?im)^\\s*(?:disc|disk|medium|media)\\s*type\\s*:\\s*CD-R(?:W)?\\s*$", options: .regularExpression) != nil,
-              let line = log.split(separator: "\n").first(where: { $0.lowercased().contains("capacity") }),
-              let range = line.range(of: "[0-9]+:[0-9]{2}:[0-9]{2}", options: .regularExpression) else {
+        func matches(_ pattern: String) -> Bool { log.range(of: pattern, options: .regularExpression) != nil }
+        // cdrdao 1.2.6 uses CD-RW: no/yes plus CD-R empty: yes on macOS.
+        // Keep support for explicit type/state responses, but reject contradictory reports.
+        let explicitCD = matches(#"(?im)^\s*(?:disc|disk|medium|media)\s*type\s*:\s*CD-R(?:W)?\s*$"#)
+        let typedBlankCD = matches(#"(?im)^\s*CD-R(?:W)?\s+empty\s*:\s*yes\s*$"#)
+        let actualCD = matches(#"(?im)^\s*CD-RW\s*:\s*(?:yes|no)\s*$"#) && typedBlankCD
+        let blank = typedBlankCD || matches(#"(?im)^\s*(?:disc|disk|medium|media)\s*(?:status|state)\s*:\s*(?:empty|blank)\s*$"#) ||
+            matches(#"(?im)^\s*(?:(?:disc|disk|medium|media)\s+)?(?:is\s+)?(?:empty|blank)\s*:\s*yes\s*$"#)
+        let conflicting = matches(#"(?im)^\s*(?:disc|disk|medium|media)\s*type\s*:\s*(?!CD-R(?:W)?\s*$)\S.*$"#) ||
+            matches(#"(?im)^\s*(?:CD-R(?:W)?\s+)?(?:empty|blank)\s*:\s*no\s*$"#) ||
+            matches(#"(?im)^\s*(?:disc|disk|medium|media)\s*(?:status|state)\s*:\s*(?!empty\s*$|blank\s*$)\S.*$"#) ||
+            (matches(#"(?im)^\s*CD-RW\s*:\s*yes\s*$"#) && matches(#"(?im)^\s*CD-RW\s*:\s*no\s*$"#))
+        let pattern = #"(?im)^\s*Total Capacity\s*:\s*(\d{1,2}):(\d{2}):(\d{2})\s*(?:\((\d+)\s+blocks\b[^\n]*\))?\s*$"#
+        let regex = try NSRegularExpression(pattern: pattern)
+        let nsLog = log as NSString
+        let capacities = regex.matches(in: log, range: NSRange(location: 0, length: nsLog.length))
+        guard blank, explicitCD || actualCD, !conflicting, capacities.count == 1 else {
             throw CDScribeError.message("cdrdao could not confirm blank CD media and its capacity. Nothing was written.\n\(log)")
         }
-        let parts = line[range].split(separator: ":").compactMap { Int64($0) }
+        let match = capacities[0]
+        let parts = (1...3).compactMap { Int64(nsLog.substring(with: match.range(at: $0))) }
         guard parts.count == 3, parts[0] > 0, parts[0] <= 99, parts[1] < 60, parts[2] < 75 else { throw CDScribeError.message("Invalid cdrdao media capacity response.") }
-        return parts[0] * 4500 + parts[1] * 75 + parts[2]
+        let sectors = parts[0] * 4500 + parts[1] * 75 + parts[2]
+        if match.range(at: 4).location != NSNotFound {
+            guard Int64(nsLog.substring(with: match.range(at: 4))) == sectors else { throw CDScribeError.message("cdrdao returned conflicting disc capacity values. Nothing was written.") }
+        }
+        return sectors
     }
 }
 

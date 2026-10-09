@@ -146,6 +146,36 @@ import Testing
             #expect(throws: (any Error).self) { try CdrdaoPreflight.blankCapacity(invalid) }
         }
     }
+    @Test func actualMacOSCdrdaoBlankMediaOutput() throws {
+        let log = """
+        CD-RW                : no
+        Total Capacity       : 79:57:71 (359846 blocks, 702/807 MB)
+        CD-R medium          : CMC Magnetics Corporation
+                               Short Strategy Type, e.g. Phthalocyanine
+        Recording Speed      : n/a
+        CD-R empty           : yes
+        CD-TEXT writing is supported.
+        """
+        #expect(try CdrdaoPreflight.blankCapacity(log) == 359846)
+        #expect(try CdrdaoPreflight.blankCapacity(log.replacingOccurrences(of: "CD-RW                : no", with: "CD-RW                : yes")) == 359846)
+        for invalid in [
+            log.replacingOccurrences(of: "CD-R empty           : yes", with: "CD-R empty           : no"),
+            log.replacingOccurrences(of: "CD-RW                : no", with: "DVD-R                : no"),
+            log.replacingOccurrences(of: "359846 blocks", with: "359844 blocks"),
+            log + "\nDisk type: DVD-R", log + "\nDisk status: complete",
+            log + "\nEmpty: no", log + "\nCD-RW: yes",
+            log + "\nTotal Capacity: 79:57:71 (359846 blocks)"
+        ] { #expect(throws: (any Error).self) { try CdrdaoPreflight.blankCapacity(invalid) } }
+    }
+    @Test func cdrdaoRejectsAmbiguousBlankMediaAndCapacity() {
+        for log in [
+            "CD-R empty: yes\nTotal Capacity: 79:57:71",
+            "CD-RW: no\nTotal Capacity: 79:57:71",
+            "CD-RW: no\nCD-R empty: yes\nTotal Capacity: 79:60:71",
+            "CD-RW: no\nCD-R empty: yes\nTotal Capacity: 79:57:75",
+            "Disk type: CD-ROM\nEmpty: yes\nTotal Capacity: 79:57:71"
+        ] { #expect(throws: (any Error).self) { try CdrdaoPreflight.blankCapacity(log) } }
+    }
     @Test func burnSpeedOptionsFollowReportedMedia() {
         #expect(BurnSpeedPolicy.available([16, 4, 8, 4, 0, -1, .infinity, .nan]) == [4, 8, 16])
         #expect(BurnSpeedPolicy.available([4, 4.5, 8], integerOnly: true) == [4, 8])

@@ -2,18 +2,24 @@ name: macOS build and integration tests
 on:
   push:
   pull_request:
+permissions:
+  contents: read
 jobs:
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install free audio tools
-        run: brew install ffmpeg cdrdao
-      - name: Test real FLAC and PCM pipeline
-        run: swift test
-      - name: Build ARM64 native app
+      - name: Set up Python for source builds
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build helpers and test real FLAC and PCM pipeline
+        run: ./Scripts/test.sh
+      - name: Build self-contained ARM64 app
         run: ./Scripts/build.sh
+      - name: Package app, corresponding sources and checksums
+        run: python3 Scripts/package-release.py
       - uses: actions/upload-artifact@v4
         with:
           name: CDScribe-macOS-arm64
-          path: build/CDScribe.app
+          path: dist/*

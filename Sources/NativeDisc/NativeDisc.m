@@ -70,7 +70,13 @@ static DRCDTextBlock *CDTextBlock(NSData *json, NSError **error) {
     return block;
 }
 static NSArray *CDTracks(NSArray<NSString *> *paths, NSArray<NSNumber *> *sectors, NSArray<NSNumber *> *gaps, NSArray *metadata, BOOL verify, NSError **error) {
-    if (paths.count != sectors.count || (gaps && paths.count != gaps.count)) { CDFail(error, @"Native audio layout count mismatch."); return nil; }
+    if (paths.count == 0 || paths.count > 99 || paths.count != sectors.count || paths.count != gaps.count || (metadata && paths.count != metadata.count)) { CDFail(error, @"Native audio layout count mismatch."); return nil; }
+    for (NSUInteger i = 0; i < gaps.count; i++) {
+        double gap = [gaps[i] doubleValue];
+        if (!isfinite(gap) || gap < 0 || gap > 2250 || gap != floor(gap) || (i == 0 && gap != 150)) {
+            CDFail(error, @"Invalid native pregap plan. Track one requires 150 sectors; subsequent pauses must match the reviewed layout."); return nil;
+        }
+    }
     NSMutableArray *tracks = [NSMutableArray array];
     for (NSUInteger i = 0; i < paths.count; i++) {
         DRTrack *track = [DRTrack trackForAudioFile:paths[i]];
@@ -78,7 +84,9 @@ static NSArray *CDTracks(NSArray<NSString *> *paths, NSArray<NSNumber *> *sector
             CDFail(error, [NSString stringWithFormat:@"DiscRecording cannot read the prepared WAV or reports a different length for track %lu.", (unsigned long)i + 1]); return nil;
         }
         NSMutableDictionary *properties = [[track properties] mutableCopy];
-        properties[DRPreGapLengthKey] = gaps ? gaps[i] : @0;
+        properties[DRPreGapLengthKey] = [DRMSF msfWithFrames:[gaps[i] unsignedIntValue]];
+        // Never let DiscRecording replace a zero/custom gap with drive-chosen silence.
+        // Some writers reject this requirement: surface the error and offer cdrdao.
         properties[DRPreGapIsRequiredKey] = @YES;
         properties[DRVerificationTypeKey] = verify ? DRVerificationTypeProduceAgain : DRVerificationTypeNone;
         NSString *isrc = metadata ? metadata[i][@"isrc"] : @"";
@@ -131,8 +139,11 @@ static NSArray *CDTracks(NSArray<NSString *> *paths, NSArray<NSNumber *> *sector
     DRCDTextBlock *block = CDTextBlock(json, error);
     return block ? CDJSON([block trackDictionaries]) : nil;
 }
-+ (BOOL)validateAudioPaths:(NSArray<NSString *> *)paths sectors:(NSArray<NSNumber *> *)sectors error:(NSError **)error {
-    return CDTracks(paths, sectors, nil, nil, NO, error) != nil;
++ (BOOL)isUnsupportedPregapError:(NSNumber *)code {
+    return [code intValue] == (OSStatus)kDRDevicePreGapLengthNotValidErr;
+}
++ (BOOL)validateAudioPaths:(NSArray<NSString *> *)paths sectors:(NSArray<NSNumber *> *)sectors gaps:(NSArray<NSNumber *> *)gaps error:(NSError **)error {
+    return CDTracks(paths, sectors, gaps, nil, NO, error) != nil;
 }
 + (NSData *)readTextForDevice:(NSString *)identifier error:(NSError **)error {
     DRDevice *device = [DRDevice deviceForIORegistryEntryPath:identifier];
@@ -162,6 +173,7 @@ static NSArray *CDTracks(NSArray<NSString *> *paths, NSArray<NSNumber *> *sector
     if (![caps[DRDeviceCanWriteCDTextKey] boolValue] || ![caps[DRDeviceCanWriteCDSAOKey] boolValue]) return CDFail(error, @"The drive does not advertise CD-Text and session-at-once writing. CDScribe will not silently omit CD-Text.");
     if (![device mediaIsPresent] || ![device mediaIsBlank] || [device mediaIsBusy] || [device mediaIsTransitioning]) return CDFail(error, @"Insert an idle blank CD-R or CD-RW into the selected writer.");
     if (![[device mediaType] isEqual:DRDeviceMediaTypeCDR] && ![[device mediaType] isEqual:DRDeviceMediaTypeCDRW]) return CDFail(error, @"Audio CDs require CD-R or CD-RW media.");
+    if (paths.count != sectors.count || paths.count != gaps.count) return CDFail(error, @"Native audio layout count mismatch.");
     uint64_t needed = 0;
     for (NSUInteger i = 0; i < sectors.count; i++) needed += [sectors[i] unsignedLongLongValue] + [gaps[i] unsignedLongLongValue];
     if (needed > [[device mediaSpaceFree] sectors]) return CDFail(error, @"The inserted disc has insufficient capacity. Nothing has been written.");
@@ -194,10 +206,13 @@ static NSArray *CDTracks(NSArray<NSString *> *paths, NSArray<NSNumber *> *sector
     NSDictionary *error = status[DRErrorStatusKey] ?: @{};
     NSString *message = error[DRErrorStatusErrorStringKey] ?: @"";
     NSString *info = error[DRErrorStatusErrorInfoStringKey] ?: @"";
+    NSNumber *code = error[DRErrorStatusErrorKey] ?: @0;
+    NSString *details = [[@[message, info] componentsJoinedByString:@" "] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!details.length && [code longLongValue] != 0) details = [NSString stringWithFormat:@"DiscRecording error %@", code];
     NSMutableDictionary *result = [@{
         @"state": state, @"phase": phase, @"done": @([state isEqual:DRStatusStateDone]), @"failed": @([state isEqual:DRStatusStateFailed]),
         @"verificationObserved": @(_sawVerification), @"verificationRequested": @(_requestedVerification),
-        @"error": [NSString stringWithFormat:@"%@ %@", message, info]
+        @"error": details, @"errorCode": code, @"pregapUnsupported": @([CDNativeDisc isUnsupportedPregapError:code])
     } mutableCopy];
     if (status[DRStatusPercentCompleteKey]) result[@"fraction"] = status[DRStatusPercentCompleteKey];
     return CDJSON(result);
