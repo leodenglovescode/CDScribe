@@ -1,0 +1,39 @@
+// !$*UTF8*$!
+{ archiveVersion = 1; classes = {}; objectVersion = 56; objects = {
+60AD3DBDC265C1431061720E = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/AppDelegate.swift"; sourceTree = "<group>"; };
+20824F1EBEC21277526315E1 = { isa = PBXBuildFile; fileRef = 60AD3DBDC265C1431061720E; };
+280721A8E8FAB0949BDB7467 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/AppModel.swift"; sourceTree = "<group>"; };
+BA1CB8E0FBB552AF526E7DF3 = { isa = PBXBuildFile; fileRef = 280721A8E8FAB0949BDB7467; };
+39B3EBA83283F73DCADB117C = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/CDScribeApp.swift"; sourceTree = "<group>"; };
+D267E4DE70FE176179AD9E97 = { isa = PBXBuildFile; fileRef = 39B3EBA83283F73DCADB117C; };
+16968DEA5DB62948ED4010D2 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/CDTextPreviewView.swift"; sourceTree = "<group>"; };
+DFE67C2C717042D05945E8F8 = { isa = PBXBuildFile; fileRef = 16968DEA5DB62948ED4010D2; };
+55814DF574DD46D83107EE75 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/DiagnosticsView.swift"; sourceTree = "<group>"; };
+D8D0E48DC26587394F833A69 = { isa = PBXBuildFile; fileRef = 55814DF574DD46D83107EE75; };
+BCDF97AA1AB8E255754C7146 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/ISRCReviewView.swift"; sourceTree = "<group>"; };
+C138353EAC317484407011A6 = { isa = PBXBuildFile; fileRef = BCDF97AA1AB8E255754C7146; };
+E07BB026CB943D6E3FBB17B6 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/MainView.swift"; sourceTree = "<group>"; };
+0ADB0DC5FB3D10B71DFF5DDE = { isa = PBXBuildFile; fileRef = E07BB026CB943D6E3FBB17B6; };
+4F718BC2020677C9E911A710 = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Sources/CDScribeApp/SmokeTestRunner.swift"; sourceTree = "<group>"; };
+E340E9A3EB328CFB76A6E22A = { isa = PBXBuildFile; fileRef = 4F718BC2020677C9E911A710; };
+9CEEC13202AFBF12EE3ABB99 = { isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Resources/Info.plist; sourceTree = "<group>"; };
+C2D4B446A44CE54FAB8E0115 = { isa = PBXFileReference; lastKnownFileType = image.icns; path = Resources/AppIcon.icns; sourceTree = "<group>"; };
+4EED28C5B2A81EE7A7A803CA = { isa = PBXBuildFile; fileRef = C2D4B446A44CE54FAB8E0115; };
+A172CEDCAE47474B615C54D5 = { isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CDScribe.app; sourceTree = BUILT_PRODUCTS_DIR; };
+BC4A71180870F7945155FBB0 = { isa = XCLocalSwiftPackageReference; relativePath = "."; };
+A8792157CB4F27FB949C035F = { isa = XCSwiftPackageProductDependency; package = BC4A71180870F7945155FBB0; productName = CDScribeCore; };
+06A61DF042AD775E8BDD2766 = { isa = PBXBuildFile; productRef = A8792157CB4F27FB949C035F; };
+878A52FC5FF6A57D50B7B870 = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (20824F1EBEC21277526315E1, BA1CB8E0FBB552AF526E7DF3, D267E4DE70FE176179AD9E97, DFE67C2C717042D05945E8F8, D8D0E48DC26587394F833A69, C138353EAC317484407011A6, 0ADB0DC5FB3D10B71DFF5DDE, E340E9A3EB328CFB76A6E22A); runOnlyForDeploymentPostprocessing = 0; };
+41D311A605520FC7B8B9A980 = { isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (4EED28C5B2A81EE7A7A803CA); runOnlyForDeploymentPostprocessing = 0; };
+E2AA269EB967A8853A258BFA = { isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (06A61DF042AD775E8BDD2766); runOnlyForDeploymentPostprocessing = 0; };
+0A3E27B8CA818264D75C8D81 = { isa = PBXGroup; children = (A172CEDCAE47474B615C54D5); name = Products; sourceTree = "<group>"; };
+AD936FCBED631FA67E05C3EA = { isa = PBXGroup; children = (60AD3DBDC265C1431061720E, 280721A8E8FAB0949BDB7467, 39B3EBA83283F73DCADB117C, 16968DEA5DB62948ED4010D2, 55814DF574DD46D83107EE75, BCDF97AA1AB8E255754C7146, E07BB026CB943D6E3FBB17B6, 4F718BC2020677C9E911A710, 9CEEC13202AFBF12EE3ABB99, C2D4B446A44CE54FAB8E0115, 0A3E27B8CA818264D75C8D81); sourceTree = "<group>"; };
+73EBF6644258C120893E685D = { isa = XCBuildConfiguration; buildSettings = {SDKROOT = "macosx"; MACOSX_DEPLOYMENT_TARGET = "15.0"; SWIFT_VERSION = "6.0"; ARCHS = "arm64"; CLANG_ENABLE_MODULES = "YES"; SWIFT_STRICT_CONCURRENCY = "complete"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG"; ENABLE_TESTABILITY = "YES"; ONLY_ACTIVE_ARCH = "YES";}; name = Debug; };
+0B0C687DF8B6B8DC790B519C = { isa = XCBuildConfiguration; buildSettings = {SDKROOT = "macosx"; MACOSX_DEPLOYMENT_TARGET = "15.0"; SWIFT_VERSION = "6.0"; ARCHS = "arm64"; CLANG_ENABLE_MODULES = "YES"; SWIFT_STRICT_CONCURRENCY = "complete"; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release; };
+B00CCDD09424E369308D67FA = { isa = XCBuildConfiguration; buildSettings = {SDKROOT = "macosx"; MACOSX_DEPLOYMENT_TARGET = "15.0"; SWIFT_VERSION = "6.0"; ARCHS = "arm64"; CLANG_ENABLE_MODULES = "YES"; SWIFT_STRICT_CONCURRENCY = "complete"; PRODUCT_NAME = "CDScribe"; PRODUCT_BUNDLE_IDENTIFIER = "io.github.leodenglovescode.CDScribe"; INFOPLIST_FILE = "Resources/Info.plist"; CODE_SIGN_STYLE = "Automatic"; CODE_SIGN_IDENTITY = "-"; ENABLE_APP_SANDBOX = "NO"; ENABLE_HARDENED_RUNTIME = "NO"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; GENERATE_INFOPLIST_FILE = "NO"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG"; ENABLE_TESTABILITY = "YES"; ONLY_ACTIVE_ARCH = "YES";}; name = Debug; };
+1B104479E55E37CF8A63CBDF = { isa = XCBuildConfiguration; buildSettings = {SDKROOT = "macosx"; MACOSX_DEPLOYMENT_TARGET = "15.0"; SWIFT_VERSION = "6.0"; ARCHS = "arm64"; CLANG_ENABLE_MODULES = "YES"; SWIFT_STRICT_CONCURRENCY = "complete"; PRODUCT_NAME = "CDScribe"; PRODUCT_BUNDLE_IDENTIFIER = "io.github.leodenglovescode.CDScribe"; INFOPLIST_FILE = "Resources/Info.plist"; CODE_SIGN_STYLE = "Automatic"; CODE_SIGN_IDENTITY = "-"; ENABLE_APP_SANDBOX = "NO"; ENABLE_HARDENED_RUNTIME = "NO"; LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks"; GENERATE_INFOPLIST_FILE = "NO"; SWIFT_OPTIMIZATION_LEVEL = "-O"; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";}; name = Release; };
+76F8DEC3DFE0BDB465198890 = { isa = XCConfigurationList; buildConfigurations = (73EBF6644258C120893E685D, 0B0C687DF8B6B8DC790B519C); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+1B672BF3DA427763BF644BE3 = { isa = XCConfigurationList; buildConfigurations = (B00CCDD09424E369308D67FA, 1B104479E55E37CF8A63CBDF); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+34A04005BCAF206EEC990BD9 = { isa = PBXNativeTarget; buildConfigurationList = 1B672BF3DA427763BF644BE3; buildPhases = (878A52FC5FF6A57D50B7B870, E2AA269EB967A8853A258BFA, 41D311A605520FC7B8B9A980); buildRules = (); dependencies = (); name = CDScribe; packageProductDependencies = (A8792157CB4F27FB949C035F); productName = CDScribe; productReference = A172CEDCAE47474B615C54D5; productType = "com.apple.product-type.application"; };
+244210E48437B6556980A702 = { isa = PBXProject; attributes = { LastSwiftUpdateCheck = 2700; LastUpgradeCheck = 2700; }; buildConfigurationList = 76F8DEC3DFE0BDB465198890; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base); mainGroup = AD936FCBED631FA67E05C3EA; productRefGroup = 0A3E27B8CA818264D75C8D81; projectDirPath = ""; projectRoot = ""; packageReferences = (BC4A71180870F7945155FBB0); targets = (34A04005BCAF206EEC990BD9); };
+}; rootObject = 244210E48437B6556980A702; }

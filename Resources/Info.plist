@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleName</key><string>CDScribe</string>
+<key>CFBundleDisplayName</key><string>CDScribe</string>
+<key>CFBundleExecutable</key><string>CDScribe</string>
+<key>CFBundleIdentifier</key><string>io.github.leodenglovescode.CDScribe</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.1.0</string>
+<key>CFBundleVersion</key><string>1</string>
+<key>CFBundleIconFile</key><string>AppIcon</string>
+<key>LSMinimumSystemVersion</key><string>15.0</string>
+<key>LSApplicationCategoryType</key><string>public.app-category.music</string>
+<key>NSPrincipalClass</key><string>NSApplication</string>
+<key>NSHighResolutionCapable</key><true/>
+<key>NSHumanReadableCopyright</key><string>Copyright © 2026 Leo Deng. GPL-3.0-or-later.</string>
+<key>CFBundleDocumentTypes</key><array><dict>
+<key>CFBundleTypeName</key><string>FLAC Audio</string>
+<key>CFBundleTypeRole</key><string>Viewer</string>
+<key>LSHandlerRank</key><string>Alternate</string>
+<key>CFBundleTypeExtensions</key><array><string>flac</string></array>
+</dict></array>
+</dict></plist>

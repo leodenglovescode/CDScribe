@@ -1,0 +1,11 @@
+.build/
+build/
+DerivedData/
+.DS_Store
+*.xcuserstate
+xcuserdata/
+*.flac
+*.cdr
+*.wav
+*.aiff
+*.toc
