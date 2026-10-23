@@ -12,6 +12,9 @@ CDScribe is a free, native macOS app for burning FLAC albums as standard audio C
 
 Everything is included. No dependency installation, first-run download, account, ads or analytics. Importing and burning work offline.
 
+## Screenshot
+<img width="1196" height="887" alt="In-App Screenshot" src="https://github.com/user-attachments/assets/0f81d38b-7b23-4fa9-abcb-efa936e658a6" />
+
 ## Features
 
 - Embedded metadata and artwork import, track-number sorting, multi-disc grouping and editable album/track information.
